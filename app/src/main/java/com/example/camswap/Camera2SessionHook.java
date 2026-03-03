@@ -114,7 +114,8 @@ public final class Camera2SessionHook {
         XposedHelpers.findAndHookMethod(hookedClass, "onClosed", CameraDevice.class, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
-                LogUtil.log("【CS】相机关闭 onClosed");
+                LogUtil.log("【CS】相机关闭 onClosed，释放播放器资源");
+                playerManager.releaseCamera2Resources();
                 releaseImageWriters();
             }
         });
@@ -129,7 +130,9 @@ public final class Camera2SessionHook {
         XposedHelpers.findAndHookMethod(hookedClass, "onDisconnected", CameraDevice.class, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
-                LogUtil.log("【CS】相机断开onDisconnected ：");
+                LogUtil.log("【CS】相机断开 onDisconnected，释放播放器资源");
+                playerManager.releaseCamera2Resources();
+                releaseImageWriters();
             }
         });
     }

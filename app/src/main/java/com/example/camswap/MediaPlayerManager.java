@@ -175,6 +175,18 @@ public final class MediaPlayerManager {
         c1_renderer_texture = null;
     }
 
+    /** Release Camera1 players and renderers (called from stopPreview/release). */
+    void releaseCamera1Resources() {
+        GLVideoRenderer.releaseSafely(c1_renderer_holder);
+        c1_renderer_holder = null;
+        GLVideoRenderer.releaseSafely(c1_renderer_texture);
+        c1_renderer_texture = null;
+        stopAndRelease(mplayer1);
+        mplayer1 = null;
+        stopAndRelease(mMediaPlayer);
+        mMediaPlayer = null;
+    }
+
     /** Release Camera2 players and renderers (called from onOpened). */
     void releaseCamera2Resources() {
         GLVideoRenderer.releaseSafely(c2_renderer);

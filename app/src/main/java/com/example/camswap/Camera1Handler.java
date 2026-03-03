@@ -351,6 +351,29 @@ public class Camera1Handler implements ICameraHandler {
                     }
                 });
 
+        // Hook stopPreview 和 release 以释放 MediaPlayer 资源，防止退出相机后视频继续后台播放
+        XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "stopPreview",
+                new XC_MethodHook() {
+                    @Override
+                    protected void beforeHookedMethod(MethodHookParam param) {
+                        LogUtil.log("【CS】Camera1 stopPreview，释放播放器资源");
+                        HookMain.playerManager.releaseCamera1Resources();
+                    }
+                });
+
+        XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "release",
+                new XC_MethodHook() {
+                    @Override
+                    protected void beforeHookedMethod(MethodHookParam param) {
+                        LogUtil.log("【CS】Camera1 release，释放播放器资源");
+                        HookMain.playerManager.releaseCamera1Resources();
+                        // 清除 Camera1 相关引用
+                        HookMain.origin_preview_camera = null;
+                        HookMain.start_preview_camera = null;
+                        HookMain.camera_onPreviewFrame = null;
+                    }
+                });
+
         // Hook takePicture for Photo Fake
         de.robv.android.xposed.XC_MethodHook takePictureHook = new de.robv.android.xposed.XC_MethodHook() {
             @Override

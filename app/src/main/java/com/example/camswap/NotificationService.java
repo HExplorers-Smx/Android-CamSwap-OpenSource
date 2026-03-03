@@ -36,6 +36,8 @@ public class NotificationService extends Service {
                 // 循环切换旋转偏移: 0 -> 90 -> 180 -> 270 -> 0
                 currentRotationOffset = (currentRotationOffset + 90) % 360;
                 if (configManager != null) {
+                    // 先强制重新加载最新配置，避免用过时的 configData 覆盖文件导致其他设置丢失
+                    configManager.forceReload();
                     configManager.setInt(ConfigManager.KEY_VIDEO_ROTATION_OFFSET, currentRotationOffset);
                 }
                 // 更新通知显示
