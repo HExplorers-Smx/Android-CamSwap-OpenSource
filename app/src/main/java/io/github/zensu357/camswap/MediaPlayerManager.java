@@ -104,6 +104,27 @@ public final class MediaPlayerManager {
         return new MediaPlayer();
     }
 
+    long getCamera2PlaybackPositionMs() {
+        MediaPlayer[] players = {
+                c2_player, c2_player_1,
+                c2_reader_player, c2_reader_player_1,
+                mplayer1, mMediaPlayer
+        };
+        for (MediaPlayer player : players) {
+            if (player == null) {
+                continue;
+            }
+            try {
+                int position = player.getCurrentPosition();
+                if (position >= 0) {
+                    return position;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return 0;
+    }
+
     // =====================================================================
     // Restart / rotation / release
     // =====================================================================

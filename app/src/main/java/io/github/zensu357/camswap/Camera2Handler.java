@@ -132,34 +132,27 @@ public class Camera2Handler implements ICameraHandler {
 
                         // Dynamic defense for Photo Fake
                         if (VideoManager.getConfig().getBoolean(ConfigManager.KEY_ENABLE_PHOTO_FAKE, false)
-                                && HookMain.camera2Hook.trackedReaderSurfaces.contains(param.args[0])) {
+                                && HookMain.camera2Hook.isTrackedReaderSurface((Surface) param.args[0])) {
                             LogUtil.log("【CS】检测到 ImageReader Surface 在 addTarget: " + param.args[0]);
-                            HookMain.camera2Hook.pendingPhotoSurface = (Surface) param.args[0];
-                            // 不阻塞 addTarget：仍然重定向到 virtualSurface（这样 CaptureRequest 不为空）
-                            // 注入将在 build() 时触发
+                            if (HookMain.camera2Hook.isJpegReaderSurface((Surface) param.args[0])) {
+                                HookMain.camera2Hook.markPendingJpegCapture((Surface) param.args[0]);
+                                LogUtil.log("【CS】保留 JPEG ImageReader 目标用于拍照: " + param.args[0]);
+                                return;
+                            }
                         }
 
-                        String surfaceInfo = param.args[0].toString();
-                        if (surfaceInfo.contains("Surface(name=null)")) {
-                            if (HookMain.camera2Hook.readerSurface == null) {
-                                HookMain.camera2Hook.readerSurface = (Surface) param.args[0];
-                            } else {
-                                if ((!HookMain.camera2Hook.readerSurface.equals(param.args[0]))
-                                        && HookMain.camera2Hook.readerSurface1 == null) {
-                                    HookMain.camera2Hook.readerSurface1 = (Surface) param.args[0];
-                                }
+                        Surface originalSurface = (Surface) param.args[0];
+                        if (HookMain.camera2Hook.isTrackedReaderSurface(originalSurface)) {
+                            HookMain.camera2Hook.rememberReaderPlaybackSurface(originalSurface);
+                            if (HookMain.camera2Hook.shouldKeepRealReaderSurfaceForPackage(originalSurface,
+                                    HookMain.toast_content != null ? HookMain.toast_content.getPackageName() : null)) {
+                                LogUtil.log("【CS】保留兼容性 ImageReader 目标: " + originalSurface);
+                                return;
                             }
                         } else {
-                            if (HookMain.camera2Hook.previewSurface == null) {
-                                HookMain.camera2Hook.previewSurface = (Surface) param.args[0];
-                            } else {
-                                if ((!HookMain.camera2Hook.previewSurface.equals(param.args[0]))
-                                        && HookMain.camera2Hook.previewSurface1 == null) {
-                                    HookMain.camera2Hook.previewSurface1 = (Surface) param.args[0];
-                                }
-                            }
+                            HookMain.camera2Hook.rememberPreviewSurface(originalSurface);
                         }
-                        LogUtil.log("【CS】添加目标：" + param.args[0].toString());
+                        LogUtil.log("【CS】添加目标：" + originalSurface.toString());
                         param.args[0] = HookMain.camera2Hook.getVirtualSurface();
 
                     }
@@ -194,18 +187,7 @@ public class Camera2Handler implements ICameraHandler {
                             return;
                         }
                         Surface rm_surf = (Surface) param.args[0];
-                        if (rm_surf.equals(HookMain.camera2Hook.previewSurface)) {
-                            HookMain.camera2Hook.previewSurface = null;
-                        }
-                        if (rm_surf.equals(HookMain.camera2Hook.previewSurface1)) {
-                            HookMain.camera2Hook.previewSurface1 = null;
-                        }
-                        if (rm_surf.equals(HookMain.camera2Hook.readerSurface1)) {
-                            HookMain.camera2Hook.readerSurface1 = null;
-                        }
-                        if (rm_surf.equals(HookMain.camera2Hook.readerSurface)) {
-                            HookMain.camera2Hook.readerSurface = null;
-                        }
+                        HookMain.camera2Hook.onTargetRemoved(rm_surf);
 
                     }
                 });
@@ -242,17 +224,10 @@ public class Camera2Handler implements ICameraHandler {
                         LogUtil.log("【CS】开始build请求");
 
                         if (VideoManager.getConfig().getBoolean(ConfigManager.KEY_ENABLE_PHOTO_FAKE, false)
-                                && HookMain.camera2Hook.pendingPhotoSurface != null) {
-                            final Surface photoSurface = HookMain.camera2Hook.pendingPhotoSurface;
-                            HookMain.camera2Hook.pendingPhotoSurface = null;
-                            new Thread(() -> {
-                                try {
-                                    Thread.sleep(100); // 等 App 准备接收
-                                    HookMain.camera2Hook.createOrPumpImage(photoSurface);
-                                } catch (Exception e) {
-                                    LogUtil.log("【CS】build 触发注入异常: " + e);
-                                }
-                            }, "PhotoFake-Pump").start();
+                                && HookMain.camera2Hook.pendingPhotoSurface != null
+                                && HookMain.camera2Hook.isJpegReaderSurface(HookMain.camera2Hook.pendingPhotoSurface)) {
+                            LogUtil.log("【CS】build 已标记等待 JPEG acquire 替换: "
+                                    + HookMain.camera2Hook.pendingPhotoSurface);
                         }
 
                         HookMain.process_camera2_play();

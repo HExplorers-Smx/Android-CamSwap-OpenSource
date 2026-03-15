@@ -61,6 +61,8 @@ public class GLVideoRenderer implements SurfaceTexture.OnFrameAvailableListener 
     private volatile int mRotationDegrees = 0;
     private volatile boolean mReleased = false;
     private boolean mInitialized = false;
+    private volatile int mSurfaceWidth = 0;
+    private volatile int mSurfaceHeight = 0;
 
     // Thread
     private HandlerThread mGLThread;
@@ -124,6 +126,14 @@ public class GLVideoRenderer implements SurfaceTexture.OnFrameAvailableListener 
         return mInputSurface;
     }
 
+    public int getSurfaceWidth() {
+        return mSurfaceWidth;
+    }
+
+    public int getSurfaceHeight() {
+        return mSurfaceHeight;
+    }
+
     /**
      * 设置旋转角度（0/90/180/270），实时生效。
      */
@@ -161,6 +171,12 @@ public class GLVideoRenderer implements SurfaceTexture.OnFrameAvailableListener 
             int[] height = new int[1];
             EGL14.eglQuerySurface(mEGLDisplay, mEGLSurface, EGL14.EGL_WIDTH, width, 0);
             EGL14.eglQuerySurface(mEGLDisplay, mEGLSurface, EGL14.EGL_HEIGHT, height, 0);
+            if (width[0] > 0) {
+                mSurfaceWidth = width[0];
+            }
+            if (height[0] > 0) {
+                mSurfaceHeight = height[0];
+            }
 
             // Set viewport to the EGL surface's actual dimensions
             if (width[0] > 0 && height[0] > 0) {
@@ -292,6 +308,8 @@ public class GLVideoRenderer implements SurfaceTexture.OnFrameAvailableListener 
         int[] height = new int[1];
         EGL14.eglQuerySurface(mEGLDisplay, mEGLSurface, EGL14.EGL_WIDTH, width, 0);
         EGL14.eglQuerySurface(mEGLDisplay, mEGLSurface, EGL14.EGL_HEIGHT, height, 0);
+        mSurfaceWidth = width[0];
+        mSurfaceHeight = height[0];
         LogUtil.log("【CS】【GL】EGL Surface dimensions initialized: " + width[0] + "x" + height[0]);
 
         // 如果 EGL Surface 尺寸太小（例如 SurfaceHolder buffer 尚未分配），视为初始化失败

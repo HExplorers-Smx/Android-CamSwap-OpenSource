@@ -8,6 +8,8 @@ import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CaptureFailure;
 import android.hardware.camera2.CaptureRequest;
+import android.media.Image;
+import android.os.Build;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 
@@ -219,43 +221,89 @@ public class HookMain implements IXposedHookLoadPackage {
                     }
                 });
 
-        XposedHelpers.findAndHookMethod("android.media.ImageReader", lpparam.classLoader, "newInstance", int.class,
-                int.class, int.class, int.class, new XC_MethodHook() {
-                    @Override
-                    protected void beforeHookedMethod(MethodHookParam param) {
-                        LogUtil.log("【CS】应用创建了渲染器：宽：" + param.args[0] + " 高：" + param.args[1] + "格式" + param.args[2]);
-                        c2_ori_width = (int) param.args[0];
-                        c2_ori_height = (int) param.args[1];
-                        imageReaderFormat = (int) param.args[2];
-                        need_to_show_toast = !getConfig().getBoolean(ConfigManager.KEY_DISABLE_TOAST, false);
-                        if (toast_content != null && need_to_show_toast) {
-                            try {
-                                showToast("应用创建了渲染器：\n宽：" + param.args[0] + "\n高：" + param.args[1] + "\n一般只需要宽高比与视频相同");
-                            } catch (Exception e) {
-                                LogUtil.log("【CS】[toast]" + e.toString());
-                            }
-                        }
+        XC_MethodHook imageReaderNewInstanceHook = new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) {
+                if (param.args == null || param.args.length < 3) {
+                    return;
+                }
+                LogUtil.log("【CS】应用创建了渲染器：宽：" + param.args[0] + " 高：" + param.args[1] + "格式" + param.args[2]);
+                c2_ori_width = (int) param.args[0];
+                c2_ori_height = (int) param.args[1];
+                imageReaderFormat = (int) param.args[2];
+                need_to_show_toast = !getConfig().getBoolean(ConfigManager.KEY_DISABLE_TOAST, false);
+                if (toast_content != null && need_to_show_toast) {
+                    try {
+                        showToast("应用创建了渲染器：\n宽：" + param.args[0] + "\n高：" + param.args[1] + "\n一般只需要宽高比与视频相同");
+                    } catch (Exception e) {
+                        LogUtil.log("【CS】[toast]" + e.toString());
                     }
+                }
+            }
 
-                    @Override
-                    protected void afterHookedMethod(MethodHookParam param) {
-                        try {
-                            if (getConfig().getBoolean(ConfigManager.KEY_ENABLE_PHOTO_FAKE, false)) {
-                                Object imageReader = param.getResult();
-                                if (imageReader != null) {
-                                    Surface surface = (Surface) XposedHelpers.callMethod(imageReader, "getSurface");
-                                    if (surface != null) {
-                                        camera2Hook.trackedReaderSurfaces.add(surface);
-                                        camera2Hook.surfaceFormatMap.put(surface, (Integer) param.args[2]);
-                                        LogUtil.log("【CS】已记录拍照用 ImageReader Surface: " + surface);
-                                    }
-                                }
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                try {
+                    if (getConfig().getBoolean(ConfigManager.KEY_ENABLE_PHOTO_FAKE, false)) {
+                        Object imageReader = param.getResult();
+                        if (imageReader != null) {
+                            Surface surface = (Surface) XposedHelpers.callMethod(imageReader, "getSurface");
+                            if (surface != null) {
+                                int width = (int) param.args[0];
+                                int height = (int) param.args[1];
+                                int format = (int) param.args[2];
+                                camera2Hook.registerImageReaderSurface(surface, format, width, height);
+                                LogUtil.log("【CS】已记录 ImageReader Surface: " + surface + " format=" + format);
                             }
-                        } catch (Exception e) {
-                            LogUtil.log("【CS】记录 ImageReader 失败: " + e);
                         }
                     }
-                });
+                } catch (Exception e) {
+                    LogUtil.log("【CS】记录 ImageReader 失败: " + e);
+                }
+            }
+        };
+
+        XposedHelpers.findAndHookMethod("android.media.ImageReader", lpparam.classLoader, "newInstance", int.class,
+                int.class, int.class, int.class, imageReaderNewInstanceHook);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                XposedHelpers.findAndHookMethod("android.media.ImageReader", lpparam.classLoader, "newInstance", int.class,
+                        int.class, int.class, int.class, long.class, imageReaderNewInstanceHook);
+            } catch (Throwable t) {
+                LogUtil.log("【CS】Hook ImageReader.newInstance(usage) 失败: " + t);
+            }
+        }
+
+        XC_MethodHook acquireImageHook = new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                try {
+                    if (!getConfig().getBoolean(ConfigManager.KEY_ENABLE_PHOTO_FAKE, false)) {
+                        return;
+                    }
+                    Object imageReader = param.thisObject;
+                    if (imageReader == null) {
+                        return;
+                    }
+                    Surface surface = (Surface) XposedHelpers.callMethod(imageReader, "getSurface");
+                    if (!camera2Hook.isJpegReaderSurface(surface)) {
+                        return;
+                    }
+                    Image image = (Image) param.getResult();
+                    if (image == null) {
+                        return;
+                    }
+                    camera2Hook.replaceJpegImageIfNeeded(imageReader, image);
+                } catch (Exception e) {
+                    LogUtil.log("【CS】处理 ImageReader 结果失败: " + e);
+                }
+            }
+        };
+
+        XposedHelpers.findAndHookMethod("android.media.ImageReader", lpparam.classLoader, "acquireNextImage",
+                acquireImageHook);
+        XposedHelpers.findAndHookMethod("android.media.ImageReader", lpparam.classLoader, "acquireLatestImage",
+                acquireImageHook);
 
         XposedHelpers.findAndHookMethod("android.hardware.camera2.CameraCaptureSession.CaptureCallback",
                 lpparam.classLoader, "onCaptureFailed", CameraCaptureSession.class, CaptureRequest.class,
