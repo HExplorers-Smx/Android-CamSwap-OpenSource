@@ -352,18 +352,30 @@ public final class MediaPlayerManager {
         }
     }
 
-    /** Update rotation on all active GL renderers (no player restart). */
+    /** Update rotation on active renderers (no player restart). */
     void updateRotation(int degrees) {
-        GLVideoRenderer[] all = {
+        GLVideoRenderer[] camera2Renderers = {
                 c2_reader_renderer, c2_reader_renderer_1,
-                c2_renderer, c2_renderer_1,
-                c1_renderer_holder, c1_renderer_texture
+                c2_renderer, c2_renderer_1
         };
-        for (GLVideoRenderer r : all) {
-            if (r != null && r.isInitialized())
+        for (GLVideoRenderer r : camera2Renderers) {
+            if (r != null && r.isInitialized()) {
                 r.setRotation(degrees);
+            }
         }
-        LogUtil.log("【CS】所有渲染器旋转角度已更新: " + degrees + "°");
+        updateCamera1Rotation(HookMain.getCamera1EffectiveRotation(degrees));
+        LogUtil.log("【CS】渲染器旋转角度已更新: manual=" + degrees
+                + "°, camera1_effective=" + HookMain.getCamera1EffectiveRotation(degrees) + "°");
+    }
+
+    void updateCamera1Rotation(int degrees) {
+        GLVideoRenderer[] camera1Renderers = { c1_renderer_holder, c1_renderer_texture };
+        for (GLVideoRenderer r : camera1Renderers) {
+            if (r != null && r.isInitialized()) {
+                r.setRotation(degrees);
+            }
+        }
+        LogUtil.log("【CS】Camera1 预览旋转已更新: " + degrees + "°");
     }
 
     /** Release all GL renderers. */

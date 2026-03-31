@@ -92,6 +92,32 @@ public class HookMain {
         playerManager.updateRotation(degrees);
     }
 
+    public static int normalizeRotation(int degrees) {
+        return ((degrees % 360) + 360) % 360;
+    }
+
+    /**
+     * Camera1 某些应用会继续按照 setDisplayOrientation 的方向来布局/显示预览，
+     * 我们在模块内直接向目标 Surface 渲染时，需要把这个方向补偿回去，
+     * 避免出现竖图横着显示的问题。
+     */
+    public static int getCamera1EffectiveRotation(int manualDegrees) {
+        return normalizeRotation(manualDegrees - mDisplayOrientation);
+    }
+
+    public static int getCamera1EffectiveRotationFromConfig() {
+        int manualDegrees = 0;
+        try {
+            manualDegrees = VideoManager.getConfig().getInt(ConfigManager.KEY_VIDEO_ROTATION_OFFSET, 0);
+        } catch (Throwable ignored) {
+        }
+        return getCamera1EffectiveRotation(manualDegrees);
+    }
+
+    public static void refreshCamera1PreviewRotation() {
+        playerManager.updateCamera1Rotation(getCamera1EffectiveRotationFromConfig());
+    }
+
     public static void releaseAllRenderers() {
         playerManager.releaseAllRenderers();
     }
@@ -125,6 +151,7 @@ public class HookMain {
                 @Override
                 public void onRotationChanged(int degrees) {
                     playerManager.updateRotation(degrees);
+                    refreshCamera1PreviewRotation();
                 }
             });
             configWatcher.init(context);

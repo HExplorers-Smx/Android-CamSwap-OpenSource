@@ -376,7 +376,8 @@ public class VideoToFrames implements Runnable {
                                     0);
                         } catch (Exception ignored) {
                         }
-                        int effectiveRotation = (mVideoRotation + currentManualOffset + 360) % 360;
+                        int effectiveRotation = HookMain.normalizeRotation(
+                                mVideoRotation + currentManualOffset - HookMain.mDisplayOrientation);
 
                         boolean needSwapDimensions = (effectiveRotation == 90 || effectiveRotation == 270);
                         int finalWidth = needSwapDimensions ? height : width;

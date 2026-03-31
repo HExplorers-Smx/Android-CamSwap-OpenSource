@@ -9,6 +9,9 @@ android {
     compileSdk 36
     ndkVersion '25.1.8937393'
 
+    // CI / packaging controls
+    def ciAbiFilter = providers.gradleProperty('ciAbiFilter').orNull
+
     // Auto-versioning logic
     def date = new Date()
     def buildTime = date.format('yyyy-MM-dd HH:mm:ss')
@@ -42,6 +45,12 @@ android {
         buildConfigField "String", "BUILD_TIME", "\"${buildTime}\""
 
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+
+        if (ciAbiFilter != null && !ciAbiFilter.trim().isEmpty()) {
+            ndk {
+                abiFilters ciAbiFilter.trim()
+            }
+        }
 
         externalNativeBuild {
             cmake {
@@ -95,14 +104,8 @@ android {
         }
     }
 
-    splits {
-        abi {
-            enable true
-            reset()
-            include 'arm64-v8a', 'armeabi-v7a', 'x86_64'
-            universalApk false
-        }
-    }
+    // Default builds output a universal APK. CI can request a single-ABI APK by
+    // passing -PciAbiFilter=<abi>, which keeps ABI packaging isolated per job.
 }
 
 dependencies {

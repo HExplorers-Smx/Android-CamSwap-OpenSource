@@ -209,8 +209,10 @@ public class Camera1Handler implements ICameraHandler {
         HookMain.playerManager.c1_renderer_holder = renderer;
         if (renderer != null && renderer.isInitialized()) {
             HookMain.playerManager.mplayer1.setSurface(renderer.getInputSurface());
-            int rotation = VideoManager.getConfig().getInt(ConfigManager.KEY_VIDEO_ROTATION_OFFSET, 0);
+            int rotation = HookMain.getCamera1EffectiveRotationFromConfig();
             renderer.setRotation(rotation);
+            LogUtil.log("【CS】Camera1 Holder 预览旋转: " + rotation + "° (display="
+                    + HookMain.mDisplayOrientation + "°)");
         } else {
             HookMain.playerManager.mplayer1.setSurface(HookMain.ori_holder.getSurface());
         }
@@ -263,8 +265,10 @@ public class Camera1Handler implements ICameraHandler {
         HookMain.playerManager.c1_renderer_texture = renderer;
         if (renderer != null && renderer.isInitialized()) {
             HookMain.playerManager.mMediaPlayer.setSurface(renderer.getInputSurface());
-            int rotation = VideoManager.getConfig().getInt(ConfigManager.KEY_VIDEO_ROTATION_OFFSET, 0);
+            int rotation = HookMain.getCamera1EffectiveRotationFromConfig();
             renderer.setRotation(rotation);
+            LogUtil.log("【CS】Camera1 Texture 预览旋转: " + rotation + "° (display="
+                    + HookMain.mDisplayOrientation + "°)");
         } else {
             HookMain.playerManager.mMediaPlayer.setSurface(HookMain.mSurface);
         }
@@ -377,22 +381,23 @@ public class Camera1Handler implements ICameraHandler {
     }
 
     private byte[] buildJpegFromCurrentVideoFrame() {
-        // Stream mode: MediaMetadataRetriever cannot work with URLs.
-        // Try GL capture from renderer instead.
-        if (VideoManager.isStreamMode()) {
-            LogUtil.log("【CS】Camera1 流模式下跳过 MediaMetadataRetriever，尝试 GL 截帧");
-            android.graphics.Bitmap glFrame = captureFrameFromGlRenderer();
-            if (glFrame != null) {
-                try {
-                    java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
-                    glFrame.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, bos);
-                    byte[] jpegData = bos.toByteArray();
-                    glFrame.recycle();
-                    return jpegData;
-                } catch (Exception e) {
-                    LogUtil.log("【CS】Camera1 GL 截帧 JPEG 转换失败: " + e);
-                }
+        android.graphics.Bitmap glFrame = captureFrameFromGlRenderer();
+        if (glFrame != null) {
+            try {
+                java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+                glFrame.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, bos);
+                byte[] jpegData = bos.toByteArray();
+                glFrame.recycle();
+                LogUtil.log("【CS】Camera1 Photo Fake: 优先使用 GL 截帧生成 JPEG");
+                return jpegData;
+            } catch (Exception e) {
+                LogUtil.log("【CS】Camera1 GL 截帧 JPEG 转换失败: " + e);
             }
+        }
+
+        // Stream mode: MediaMetadataRetriever cannot work with URLs.
+        if (VideoManager.isStreamMode()) {
+            LogUtil.log("【CS】Camera1 流模式下跳过 MediaMetadataRetriever，且 GL 截帧不可用");
             return null;
         }
         try {
@@ -464,8 +469,9 @@ public class Camera1Handler implements ICameraHandler {
             Object[] args = toArgs(chain.getArgs());
             try {
                 int degrees = (int) args[0];
-                HookMain.mDisplayOrientation = degrees;
-                LogUtil.log("【CS】setDisplayOrientation: " + degrees);
+                HookMain.mDisplayOrientation = HookMain.normalizeRotation(degrees);
+                LogUtil.log("【CS】setDisplayOrientation: " + HookMain.mDisplayOrientation);
+                HookMain.refreshCamera1PreviewRotation();
             } catch (Throwable t) {
                 LogUtil.log("【CS】setDisplayOrientation before 异常: " + t);
             }
@@ -519,6 +525,7 @@ public class Camera1Handler implements ICameraHandler {
         hookCameraMethod(classLoader, "stopPreview", new Class<?>[0], chain -> {
             LogUtil.log("【CS】Camera1 stopPreview，释放播放器资源");
             HookMain.playerManager.releaseCamera1Resources();
+            HookMain.mDisplayOrientation = 0;
             return chain.proceed(toArgs(chain.getArgs()));
         });
     }
@@ -530,6 +537,7 @@ public class Camera1Handler implements ICameraHandler {
             HookMain.origin_preview_camera = null;
             HookMain.start_preview_camera = null;
             HookMain.camera_onPreviewFrame = null;
+            HookMain.mDisplayOrientation = 0;
             return chain.proceed(toArgs(chain.getArgs()));
         });
     }
